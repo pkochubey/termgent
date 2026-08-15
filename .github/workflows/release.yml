@@ -58,19 +58,21 @@ jobs:
       - name: Bundle Standalone CLI Tools
         shell: pwsh
         run: |
+          if (!(Test-Path "release-dist")) { New-Item -ItemType Directory -Path "release-dist" -Force | Out-Null }
           if (Test-Path "dist/cli") {
             Compress-Archive -Path "dist/cli/*" -DestinationPath "release-dist/termgent-cli-windows-x64.zip" -Force
           }
 
       - name: Generate Checksums (SHA256)
         shell: pwsh
-        working-directory: release-dist
         run: |
-          Get-ChildItem -File -Include *.exe, *.zip | ForEach-Object {
-            $hash = (Get-FileHash -Path $_.FullName -Algorithm SHA256).Hash.ToLower()
-            "$hash  $($_.Name)" | Out-File -FilePath checksums.txt -Append -Encoding ascii
+          New-Item -ItemType File -Path "release-dist/checksums.txt" -Force | Out-Null
+          $files = Get-ChildItem -Path "release-dist" -File | Where-Object { $_.Extension -in ".exe", ".zip" -and $_.Name -ne "checksums.txt" }
+          foreach ($f in $files) {
+            $hash = (Get-FileHash -Path $f.FullName -Algorithm SHA256).Hash.ToLower()
+            Add-Content -Path "release-dist/checksums.txt" -Value "$hash  $($f.Name)" -Encoding ascii
           }
-          Get-Content checksums.txt
+          Get-Content "release-dist/checksums.txt"
 
       - name: Upload Build Artifacts (CI Runs)
         if: "!startsWith(github.ref, 'refs/tags/v')"
