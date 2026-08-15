@@ -1,0 +1,98 @@
+name: Release Build Pipeline
+
+on:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+    inputs:
+      draft:
+        description: 'Publish as Draft'
+        required: false
+        type: boolean
+        default: false
+      prerelease:
+        description: 'Publish as Pre-release'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build & Package Windows Distribution
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build TypeScript & Bundles
+        run: npm run build
+
+      - name: Package with Electron Builder
+        run: npx electron-builder --win --config.directories.output="release-dist"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Bundle Standalone CLI Tools
+        shell: pwsh
+        run: |
+          if (Test-Path "dist/cli") {
+            Compress-Archive -Path "dist/cli/*" -DestinationPath "release-dist/termgent-cli-windows-x64.zip" -Force
+          }
+
+      - name: Generate Checksums (SHA256)
+        shell: pwsh
+        working-directory: release-dist
+        run: |
+          Get-ChildItem -File -Include *.exe, *.zip | ForEach-Object {
+            $hash = (Get-FileHash -Path $_.FullName -Algorithm SHA256).Hash.ToLower()
+            "$hash  $($_.Name)" | Out-File -FilePath checksums.txt -Append -Encoding ascii
+          }
+          Get-Content checksums.txt
+
+      - name: Upload Build Artifacts (CI Runs)
+        if: "!startsWith(github.ref, 'refs/tags/v')"
+        uses: actions/upload-artifact@v4
+        with:
+          name: Termgent-Windows-Build
+          path: |
+            release-dist/*.exe
+            release-dist/*.zip
+            release-dist/checksums.txt
+          retention-days: 14
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-dist/*.exe
+            release-dist/*.zip
+            release-dist/checksums.txt
+          draft: ${{ inputs.draft || false }}
+          prerelease: ${{ inputs.prerelease || false }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,2 @@
+// ScratchTerminal removed
+export {};

@@ -1,0 +1,86 @@
+{
+  "name": "termgent",
+  "version": "1.0.0",
+  "description": "Termgent — terminal built for coding agents",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "dev": "vite",
+    "build:main": "tsc -p tsconfig.main.json",
+    "build:renderer": "vite build",
+    "build:cli": "esbuild src/cli/termgent.ts --bundle --platform=node --target=node18 --outdir=dist/cli && powershell -Command \"Copy-Item src/cli/*.cmd, src/cli/*.bat, src/cli/*.ps1 dist/cli/ -Force\"",
+    "build": "npm run build:main && npm run build:renderer && npm run build:cli",
+    "start": "npm run build && electron .",
+    "package": "npm run build && electron-builder --win --dir",
+    "dist": "npm run build && electron-builder --win"
+  },
+  "build": {
+    "appId": "com.termgent.app",
+    "productName": "Termgent",
+    "executableName": "termgent",
+    "icon": "build/icon.ico",
+    "npmRebuild": false,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "build/**/*",
+      "node_modules/node-pty/**/*"
+    ],
+    "asarUnpack": [
+      "**/node-pty/**/*",
+      "dist/cli/**/*"
+    ],
+    "win": {
+      "icon": "build/icon.ico",
+      "executableName": "termgent",
+      "target": [
+        "nsis",
+        "portable",
+        "zip"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Termgent"
+    }
+  },
+  "keywords": [
+    "terminal",
+    "termgent",
+    "coding-agents",
+    "ai-terminal",
+    "windows",
+    "conpty",
+    "xterm"
+  ],
+  "author": "termgent",
+  "license": "MIT",
+  "dependencies": {
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/addon-unicode11": "^0.8.0",
+    "@xterm/addon-web-links": "^0.11.0",
+    "@xterm/addon-webgl": "^0.18.0",
+    "@xterm/xterm": "^5.5.0",
+    "lucide-react": "^0.475.0",
+    "node-pty": "^1.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.0",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "@types/uuid": "^10.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^34.1.0",
+    "electron-builder": "^26.15.3",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.7.3",
+    "vite": "^6.1.0"
+  }
+}
