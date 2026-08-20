@@ -8,6 +8,8 @@ const pty = require('node-pty');
 export interface PtyInstance {
   id: string;
   process: any;
+  cols: number;
+  rows: number;
   buffer: string[];
   currentLine: string;
   rollingRaw: string;
@@ -51,6 +53,9 @@ export class PtyManager {
       Path: newPath,
       TERM: 'xterm-256color',
       COLORTERM: 'truecolor',
+      TERM_PROGRAM: 'vscode',
+      TERM_PROGRAM_VERSION: '1.96.0',
+      FORCE_COLOR: '1',
       TERMGENT_SESSION_ID: sessionId,
     };
 
@@ -60,11 +65,15 @@ export class PtyManager {
       rows,
       cwd: targetCwd,
       env,
+      useConpty: true,
+      conptyInheritCursor: false,
     });
 
     const instance: PtyInstance = {
       id: sessionId,
       process: ptyProcess,
+      cols,
+      rows,
       buffer: [],
       currentLine: '',
       rollingRaw: '',
@@ -109,6 +118,12 @@ export class PtyManager {
   public resize(sessionId: string, cols: number, rows: number): void {
     const instance = this.pties.get(sessionId);
     if (instance) {
+      // Avoid triggering full ConPTY screen buffer repaints if dimensions have not changed
+      if (instance.cols === cols && instance.rows === rows) {
+        return;
+      }
+      instance.cols = cols;
+      instance.rows = rows;
       try {
         instance.process.resize(cols, rows);
       } catch (e) {

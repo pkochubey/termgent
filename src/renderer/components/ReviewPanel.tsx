@@ -11,6 +11,8 @@ import {
   CheckCircle2,
   ChevronsDown,
   ChevronsUp,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 
 interface ReviewPanelProps {
@@ -51,6 +53,7 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ cwd, onClose }) => {
   const [diffResult, setDiffResult] = useState<GitDiffResult | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [collapsedFiles, setCollapsedFiles] = useState<Record<string, boolean>>({});
+  const [scrollableDiffs, setScrollableDiffs] = useState<boolean>(true);
 
   const fetchDiff = useCallback(async () => {
     if (!cwd || !(window as any).electronAPI?.getGitDiff) return;
@@ -91,6 +94,7 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ cwd, onClose }) => {
         flexDirection: 'column',
         height: '100%',
         width: '100%',
+        minHeight: 0,
         backgroundColor: '#0c0c0e',
         color: '#e4e4e7',
         fontFamily: 'system-ui, -apple-system, sans-serif',
@@ -164,6 +168,23 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ cwd, onClose }) => {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <button
+            onClick={() => setScrollableDiffs((prev) => !prev)}
+            title={scrollableDiffs ? 'Current: Scrollable files (click for full height)' : 'Current: Full height (click to limit scroll)'}
+            style={{
+              backgroundColor: scrollableDiffs ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
+              border: scrollableDiffs ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid transparent',
+              color: scrollableDiffs ? '#60a5fa' : '#a1a1aa',
+              cursor: 'pointer',
+              padding: '4px',
+              borderRadius: '4px',
+              display: 'flex',
+              alignItems: 'center',
+            }}
+          >
+            {scrollableDiffs ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+          </button>
+
+          <button
             onClick={expandAll}
             title="Expand all files"
             style={{
@@ -236,14 +257,15 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ cwd, onClose }) => {
       {/* Main Diff Content Scroll Area */}
       <div
         style={{
-          flex: 1,
+          flex: '1 1 0%',
+          minHeight: 0,
           overflowY: 'auto',
           overflowX: 'hidden',
           backgroundColor: '#09090b',
           padding: '12px 14px',
           display: 'flex',
           flexDirection: 'column',
-          gap: '16px',
+          gap: '12px',
         }}
       >
         {isLoading && !diffResult && (
@@ -288,6 +310,10 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ cwd, onClose }) => {
                   border: '1px solid #1f1f23',
                   backgroundColor: '#0d0d10',
                   overflow: 'hidden',
+                  flexShrink: 0,
+                  minHeight: '40px',
+                  display: 'flex',
+                  flexDirection: 'column',
                 }}
               >
                 {/* File Header */}
@@ -297,14 +323,24 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ cwd, onClose }) => {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    padding: '8px 12px',
+                    padding: '0 12px',
+                    minHeight: '40px',
+                    height: '40px',
+                    boxSizing: 'border-box',
                     backgroundColor: '#161619',
                     cursor: 'pointer',
                     userSelect: 'none',
                     borderBottom: isCollapsed ? 'none' : '1px solid #1f1f23',
+                    flexShrink: 0,
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 2,
+                    transition: 'background-color 0.15s ease',
                   }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#1c1c20')}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#161619')}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1, overflow: 'hidden' }}>
                     <span
                       style={{
                         fontSize: '10px',
@@ -319,7 +355,19 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ cwd, onClose }) => {
                       {badge.label}
                     </span>
 
-                    <span style={{ fontWeight: 600, fontSize: '13px', color: '#f4f4f5' }}>{fileName}</span>
+                    <span
+                      style={{
+                        fontWeight: 600,
+                        fontSize: '13px',
+                        color: '#f4f4f5',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {fileName}
+                    </span>
 
                     {dirPath && (
                       <span
@@ -329,6 +377,7 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ cwd, onClose }) => {
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap',
+                          minWidth: 0,
                         }}
                       >
                         {dirPath}
@@ -336,18 +385,18 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ cwd, onClose }) => {
                     )}
 
                     {file.status === 'added' && (
-                      <span style={{ fontSize: '10px', color: '#4ade80', backgroundColor: 'rgba(74, 222, 128, 0.1)', padding: '1px 4px', borderRadius: '3px' }}>
+                      <span style={{ fontSize: '10px', color: '#4ade80', backgroundColor: 'rgba(74, 222, 128, 0.1)', padding: '1px 4px', borderRadius: '3px', flexShrink: 0 }}>
                         added
                       </span>
                     )}
                     {file.status === 'deleted' && (
-                      <span style={{ fontSize: '10px', color: '#f87171', backgroundColor: 'rgba(248, 113, 113, 0.1)', padding: '1px 4px', borderRadius: '3px' }}>
+                      <span style={{ fontSize: '10px', color: '#f87171', backgroundColor: 'rgba(248, 113, 113, 0.1)', padding: '1px 4px', borderRadius: '3px', flexShrink: 0 }}>
                         deleted
                       </span>
                     )}
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0, marginLeft: '8px' }}>
                     <div style={{ fontSize: '12px', fontWeight: 600, display: 'flex', gap: '6px' }}>
                       <span style={{ color: '#4ade80' }}>+{file.additions}</span>
                       <span style={{ color: '#f87171' }}>-{file.deletions}</span>
@@ -365,6 +414,8 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ cwd, onClose }) => {
                       fontSize: '12px',
                       lineHeight: '20px',
                       overflowX: 'auto',
+                      overflowY: scrollableDiffs ? 'auto' : 'visible',
+                      maxHeight: scrollableDiffs ? '420px' : 'none',
                       backgroundColor: '#09090b',
                     }}
                   >
