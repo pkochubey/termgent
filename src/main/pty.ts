@@ -53,8 +53,8 @@ export class PtyManager {
       Path: newPath,
       TERM: 'xterm-256color',
       COLORTERM: 'truecolor',
-      TERM_PROGRAM: 'vscode',
-      TERM_PROGRAM_VERSION: '1.96.0',
+      TERM_PROGRAM: 'termgent',
+      TERM_PROGRAM_VERSION: '1.0.0',
       FORCE_COLOR: '1',
       TERMGENT_SESSION_ID: sessionId,
     };

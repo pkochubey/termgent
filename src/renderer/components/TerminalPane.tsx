@@ -105,6 +105,49 @@ const THEMES: Record<string, any> = {
   },
 };
 
+/**
+ * xterm 6.0 defers row painting during DEC 2026 synchronized updates, but ED2
+ * can still mutate the viewport before the completed frame is rendered. Full-
+ * screen TUIs repaint every row after ED2, so suppressing that redundant erase
+ * keeps the previous frame visible until the replacement frame is complete.
+ */
+const installSynchronizedEd2Workaround = (terminal: Terminal) => {
+  let synchronizedOutput = false;
+  const includesSynchronizedOutputMode = (params: (number | number[])[]) =>
+    params.some((param) => param === 2026);
+
+  const setModeDisposable = terminal.parser.registerCsiHandler(
+    { prefix: '?', final: 'h' },
+    (params) => {
+      if (includesSynchronizedOutputMode(params)) {
+        synchronizedOutput = true;
+      }
+      return false;
+    }
+  );
+
+  const resetModeDisposable = terminal.parser.registerCsiHandler(
+    { prefix: '?', final: 'l' },
+    (params) => {
+      if (includesSynchronizedOutputMode(params)) {
+        synchronizedOutput = false;
+      }
+      return false;
+    }
+  );
+
+  const eraseDisplayDisposable = terminal.parser.registerCsiHandler(
+    { final: 'J' },
+    (params) => synchronizedOutput && params[0] === 2
+  );
+
+  return () => {
+    setModeDisposable.dispose();
+    resetModeDisposable.dispose();
+    eraseDisplayDisposable.dispose();
+  };
+};
+
 export const TerminalPane: React.FC<TerminalPaneProps> = ({
   ptyId,
   isActive,
@@ -131,11 +174,12 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       lineHeight: 1.2,
       letterSpacing: 0,
       scrollback: 10000,
-      windowsMode: true,
-      scrollOnUserInput: false,
+      windowsPty: { backend: 'conpty' },
       theme: currentTheme,
       allowProposedApi: true,
     });
+
+    const disposeSynchronizedEd2Workaround = installSynchronizedEd2Workaround(term);
 
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
@@ -229,37 +273,15 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     // Terminal IO
     const dataDisposable = term.onData((data) => {
       window.electronAPI.sendPtyInput(ptyId, data);
-      term.scrollToBottom();
     });
 
     const resizeDisposable = term.onResize(({ cols, rows }) => {
       window.electronAPI.resizePty(ptyId, cols, rows);
     });
 
-    let pendingWrite = '';
-    let writeRaf: number | null = null;
-
-    const flushWrite = () => {
-      if (pendingWrite && termRef.current) {
-        const chunk = pendingWrite;
-        pendingWrite = '';
-        const buf = termRef.current.buffer.active;
-        const wasAtBottom = buf.viewportY >= buf.baseY - 1;
-        termRef.current.write(chunk, () => {
-          if (wasAtBottom && termRef.current) {
-            termRef.current.scrollToBottom();
-          }
-        });
-      }
-      writeRaf = null;
-    };
-
     const removeOutputListener = window.electronAPI.onPtyOutput((payload) => {
       if (payload.sessionId === ptyId) {
-        pendingWrite += payload.data;
-        if (writeRaf === null) {
-          writeRaf = requestAnimationFrame(flushWrite);
-        }
+        term.write(payload.data);
       }
     });
 
@@ -294,18 +316,13 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     resizeObserver.observe(containerEl);
 
     return () => {
-      if (writeRaf !== null) {
-        cancelAnimationFrame(writeRaf);
-        if (pendingWrite && termRef.current) {
-          termRef.current.write(pendingWrite);
-        }
-      }
       dataDisposable.dispose();
       resizeDisposable.dispose();
       removeOutputListener();
       containerEl.removeEventListener('contextmenu', handleContextMenu);
       resizeObserver.disconnect();
       window.removeEventListener('resize', handleResize);
+      disposeSynchronizedEd2Workaround();
       term.dispose();
     };
   }, [ptyId, themeName]);
